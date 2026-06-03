@@ -4,21 +4,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { databaseConfig } from './common/config';
 import { QueueNames } from './common/constants/queue-names';
-import {
-  BatchModule,
-  AssociationModule,
-  CallModule,
-  CompanyModule,
-  ContactModule,
-  DealModule,
-  EmailModule,
-  MappingModule,
-  MeetingModule,
-  NoteModule,
-  QueueModule,
-  TaskModule,
-} from './modules';
+import { BatchModule, AssociationModule, QueueModule, MappingModule, ExportModule } from './modules';
 import { HubspotModule } from './libs/hubspot/hubspot.module';
+import { EmailModule, CallModule, MeetingModule, NoteModule, TaskModule } from './modules/engagements';
+import { CompanyModule, ContactModule, DealModule } from './modules/objects';
 
 @Module({
   imports: [
@@ -56,15 +45,16 @@ import { HubspotModule } from './libs/hubspot/hubspot.module';
     ContactModule,
     CompanyModule,
     DealModule,
+    AssociationModule,
+    MappingModule,
+    QueueModule,
+    HubspotModule,
     EmailModule,
     CallModule,
     MeetingModule,
     TaskModule,
     NoteModule,
-    AssociationModule,
-    MappingModule,
-    QueueModule,
-    HubspotModule,
+    ExportModule,
   ],
 })
 export class AppModule {}

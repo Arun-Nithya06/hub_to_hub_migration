@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Company } from '../../common/entities/company.entity';
+import { Company } from 'src/common/entities';
 import { CompanyService } from './company.service';
 import { CompanyProcessor } from './company.processor';
-import { MappingModule } from '../mapping/mapping.module';
+import { MappingModule } from 'src/modules/mapping/mapping.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Company]), MappingModule],

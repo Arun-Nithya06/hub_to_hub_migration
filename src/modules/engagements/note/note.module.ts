@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Note } from '../../common/entities/note.entity';
+import { Note } from 'src/common/entities';
 import { NoteService } from './note.service';
 import { NoteProcessor } from './note.processor';
 

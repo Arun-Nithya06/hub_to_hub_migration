@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { PropertyMapping } from '../../common/entities/property-mapping.entity';
+import { PropertyMapping } from 'src/common/entities';
 import { MappingService } from './mapping.service';
 
 @Module({

@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@hubspot/api-client';
 import PQueue from 'p-queue';
+import axios, { AxiosInstance } from 'axios';
 import {
   AssociationSpec,
   BatchResponseSimplePublicObject,
@@ -11,6 +12,7 @@ import {
   Filter,
   CollectionResponseWithTotalSimplePublicObjectForwardPaging,
   FilterOperatorEnum,
+  BatchInputSimplePublicObjectBatchInputForCreate,
 } from '@hubspot/api-client/lib/codegen/crm/objects';
 import { PublicOwner } from '@hubspot/api-client/lib/codegen/crm/owners';
 import { HubspotAccount, HubspotObject } from './hubspot.enums';
@@ -20,6 +22,7 @@ import {
   MultiAssociatedObjectWithLabel,
 } from '@hubspot/api-client/lib/codegen/crm/associations/v4';
 import { Property } from '@hubspot/api-client/lib/codegen/crm/properties/models/Property';
+import { ActionResponseWithSingleResultURI, PublicExportRequest, TaskLocator } from '@hubspot/api-client/lib/codegen/crm/exports/models/all';
 
 interface QueueStats {
   pending: number;
@@ -37,7 +40,10 @@ interface AccountStatus {
 @Injectable()
 export class HubspotService implements OnApplicationShutdown {
   private readonly logger = new Logger(HubspotService.name);
+  private readonly hubspotBaseUrl = 'https://api.hubapi.com';
+  private readonly apiVersion = 'v3';
   private clients: Map<HubspotAccount, Client> = new Map();
+  private axiosClients: Map<HubspotAccount, AxiosInstance> = new Map();
   private queue: PQueue;
   private isSourceConfigured: boolean = false;
   private isDestinationConfigured: boolean = false;
@@ -46,6 +52,7 @@ export class HubspotService implements OnApplicationShutdown {
 
   constructor(private configService: ConfigService) {
     this.initializeClients();
+    this.initializeAxiosClients();
     this.initializeQueue();
     this.logStartupStatus();
   }
@@ -62,6 +69,45 @@ export class HubspotService implements OnApplicationShutdown {
       this.clients.set(HubspotAccount.DESTINATION, new Client({ accessToken: destToken }));
       this.isDestinationConfigured = true;
     }
+  }
+
+  private initializeAxiosClients(): void {
+    const sourceToken = this.configService.get<string>('HUBSPOT_SOURCE_API_KEY');
+    if (sourceToken) {
+      this.axiosClients.set(HubspotAccount.SOURCE, this.createAxiosClient(sourceToken));
+    }
+
+    const destToken = this.configService.get<string>('HUBSPOT_DESTINATION_API_KEY');
+    if (destToken) {
+      this.axiosClients.set(HubspotAccount.DESTINATION, this.createAxiosClient(destToken));
+    }
+  }
+
+  private createAxiosClient(accessToken: string): AxiosInstance {
+    const client = axios.create({
+      baseURL: this.hubspotBaseUrl,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 30000,
+    });
+
+    client.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response) {
+          this.logger.error(`Axios error: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+        } else if (error.request) {
+          this.logger.error(`Axios no response: ${error.message}`);
+        } else {
+          this.logger.error(`Axios error: ${error.message}`);
+        }
+        return Promise.reject(error);
+      },
+    );
+
+    return client;
   }
 
   private initializeQueue(): void {
@@ -120,6 +166,16 @@ export class HubspotService implements OnApplicationShutdown {
     return client;
   }
 
+  private getAxiosClient(account: HubspotAccount): AxiosInstance {
+    const client = this.axiosClients.get(account);
+    if (!client) {
+      const errorMsg = `${account} HubSpot account not configured for axios operations`;
+      this.logger.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+    return client;
+  }
+
   private async execute<T>(account: HubspotAccount, operation: () => Promise<T>, operationName: string, retryCount: number = 0): Promise<T> {
     return await this.queue.add(async () => {
       const start = Date.now();
@@ -156,13 +212,14 @@ export class HubspotService implements OnApplicationShutdown {
 
   private isRetryableError(error: any): boolean {
     const retryableStatusCodes = [408, 429, 500, 502, 503, 504];
-    return retryableStatusCodes.includes(error.statusCode) || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT';
+    return retryableStatusCodes.includes(error.statusCode) || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.response?.status === 429;
   }
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  // Original CRUD methods
   async getById(account: HubspotAccount, objectType: HubspotObject, id: string, properties?: string[]): Promise<SimplePublicObject> {
     return this.execute(
       account,
@@ -260,17 +317,17 @@ export class HubspotService implements OnApplicationShutdown {
   async batchCreate(
     account: HubspotAccount,
     objectType: HubspotObject,
-    objects: Array<{ properties: Record<string, any> }>,
+    objects: BatchInputSimplePublicObjectBatchInputForCreate,
   ): Promise<BatchResponseSimplePublicObject | BatchResponseSimplePublicObjectWithErrors> {
     return this.execute(
       account,
       async () => {
         const client = this.getClient(account);
-        const result = await client.crm.objects.batchApi.create(objectType, { inputs: objects });
+        const result = await client.crm.objects.batchApi.create(objectType, objects);
         this.logger.log(`[${account}] Batch created ${result.results?.length || 0} ${objectType}`);
         return result;
       },
-      `batchCreate(${objectType}, ${objects.length} items)`,
+      `batchCreate(${objectType}, ${objects.inputs.length} items)`,
     );
   }
 
@@ -451,6 +508,64 @@ export class HubspotService implements OnApplicationShutdown {
         return response.results || [];
       },
       `getOwners(limit=${limit})`,
+    );
+  }
+
+  async export(account: HubspotAccount, exportRequest: PublicExportRequest): Promise<TaskLocator> {
+    return this.execute(
+      account,
+      async () => {
+        const client = this.getClient(account);
+        const response = await client.crm.exports.publicExportsApi.start(exportRequest);
+        return response;
+      },
+      `export(${exportRequest.objectType})`,
+    );
+  }
+
+  async exportWithAxios(account: HubspotAccount, exportRequest: PublicExportRequest): Promise<TaskLocator> {
+    return this.execute(
+      account,
+      async () => {
+        const axiosClient = this.getAxiosClient(account);
+
+        const response = await axiosClient.post(`/crm/${this.apiVersion}/exports/export/async`, exportRequest);
+
+        return response.data as TaskLocator;
+      },
+      `exportWithAxios(${exportRequest.objectType})`,
+    );
+  }
+
+  async getExportStatus(account: HubspotAccount, taskId: number): Promise<ActionResponseWithSingleResultURI> {
+    return this.execute(
+      account,
+      async () => {
+        const client = this.getClient(account);
+        const response = await client.crm.exports.publicExportsApi.getStatus(taskId);
+        return response;
+      },
+      `getExportStatus(${taskId})`,
+    );
+  }
+
+  async getExportStatusWithAxios(account: HubspotAccount, taskId: number): Promise<ActionResponseWithSingleResultURI> {
+    return this.execute(
+      account,
+      async () => {
+        const axiosClient = this.getAxiosClient(account);
+        const response = await axiosClient.get(`/crm/${this.apiVersion}/exports/${taskId}/status`);
+
+        const status: ActionResponseWithSingleResultURI = {
+          status: response.data.status,
+          result: response.data.url ?? response?.data.result ?? null,
+          completedAt: response.data.completedAt ? new Date(response.data.completedAt) : new Date(),
+          startedAt: response.data.createdAt ? new Date(response.data.createdAt) : new Date(),
+        };
+
+        return status;
+      },
+      `getExportStatusWithAxios(${taskId})`,
     );
   }
 

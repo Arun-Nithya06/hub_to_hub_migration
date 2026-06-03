@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Deal } from '../../common/entities/deal.entity';
 import { DealService } from './deal.service';
 import { DealProcessor } from './deal.processor';
-import { MappingModule } from '../mapping/mapping.module';
+import { MappingModule } from 'src/modules/mapping/mapping.module';
+import { Deal } from 'src/common/entities';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Deal]), MappingModule],

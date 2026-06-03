@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Email } from '../../common/entities/email.entity';
+import { Email } from 'src/common/entities';
 import { EmailService } from './email.service';
 import { EmailProcessor } from './email.processor';
 

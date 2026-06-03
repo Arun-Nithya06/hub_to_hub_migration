@@ -19,16 +19,44 @@ export class QueueService {
   private readonly logger = new Logger(QueueService.name);
 
   constructor(
-    @InjectQueue(QueueNames.CONTACT_PROCESSING) private contactQueue: Queue,
-    @InjectQueue(QueueNames.COMPANY_PROCESSING) private companyQueue: Queue,
-    @InjectQueue(QueueNames.DEAL_PROCESSING) private dealQueue: Queue,
-    @InjectQueue(QueueNames.EMAIL_PROCESSING) private emailQueue: Queue,
-    @InjectQueue(QueueNames.CALL_PROCESSING) private callQueue: Queue,
-    @InjectQueue(QueueNames.MEETING_PROCESSING) private meetingQueue: Queue,
-    @InjectQueue(QueueNames.TASK_PROCESSING) private taskQueue: Queue,
-    @InjectQueue(QueueNames.NOTE_PROCESSING) private noteQueue: Queue,
-    @InjectQueue(QueueNames.ASSOCIATION_PROCESSING) private associationQueue: Queue,
+    @InjectQueue(QueueNames.CONTACT_PROCESSING)
+    private readonly contactQueue: Queue,
+
+    @InjectQueue(QueueNames.COMPANY_PROCESSING)
+    private readonly companyQueue: Queue,
+
+    @InjectQueue(QueueNames.DEAL_PROCESSING)
+    private readonly dealQueue: Queue,
+
+    @InjectQueue(QueueNames.EMAIL_PROCESSING)
+    private readonly emailQueue: Queue,
+
+    @InjectQueue(QueueNames.CALL_PROCESSING)
+    private readonly callQueue: Queue,
+
+    @InjectQueue(QueueNames.MEETING_PROCESSING)
+    private readonly meetingQueue: Queue,
+
+    @InjectQueue(QueueNames.TASK_PROCESSING)
+    private readonly taskQueue: Queue,
+
+    @InjectQueue(QueueNames.NOTE_PROCESSING)
+    private readonly noteQueue: Queue,
+
+    @InjectQueue(QueueNames.ASSOCIATION_PROCESSING)
+    private readonly associationQueue: Queue,
   ) {}
+
+  private createBulkJobs<T>(name: string, jobs: T[], jobIdBuilder: (job: T) => string, priority = 1) {
+    return jobs.map((job) => ({
+      name,
+      data: job,
+      opts: {
+        jobId: jobIdBuilder(job),
+        priority,
+      },
+    }));
+  }
 
   async addContactJob(data: ContactJobData): Promise<string> {
     const job = await this.contactQueue.add('process-contact', data, {
@@ -36,7 +64,12 @@ export class QueueService {
       priority: 1,
       attempts: 3,
     });
-    return job.id as string;
+
+    return String(job.id);
+  }
+
+  async addContactJobsBulk(data: ContactJobData[]) {
+    return this.contactQueue.addBulk(this.createBulkJobs('process-contact', data, (job) => `contact-${job.sourceId}-${job.batchId}`, 1));
   }
 
   async addCompanyJob(data: CompanyJobData): Promise<string> {
@@ -44,7 +77,12 @@ export class QueueService {
       jobId: `company-${data.sourceId}-${data.batchId}`,
       priority: 1,
     });
-    return job.id as string;
+
+    return String(job.id);
+  }
+
+  async addCompanyJobsBulk(data: CompanyJobData[]) {
+    return this.companyQueue.addBulk(this.createBulkJobs('process-company', data, (job) => `company-${job.sourceId}-${job.batchId}`, 1));
   }
 
   async addDealJob(data: DealJobData): Promise<string> {
@@ -52,7 +90,12 @@ export class QueueService {
       jobId: `deal-${data.sourceId}-${data.batchId}`,
       priority: 1,
     });
-    return job.id as string;
+
+    return String(job.id);
+  }
+
+  async addDealJobsBulk(data: DealJobData[]) {
+    return this.dealQueue.addBulk(this.createBulkJobs('process-deal', data, (job) => `deal-${job.sourceId}-${job.batchId}`, 1));
   }
 
   async addEmailJob(data: EmailJobData): Promise<string> {
@@ -60,7 +103,12 @@ export class QueueService {
       jobId: `email-${data.emailId}-${data.batchId}`,
       priority: 2,
     });
-    return job.id as string;
+
+    return String(job.id);
+  }
+
+  async addEmailJobsBulk(data: EmailJobData[]) {
+    return this.emailQueue.addBulk(this.createBulkJobs('process-email', data, (job) => `email-${job.emailId}-${job.batchId}`, 2));
   }
 
   async addCallJob(data: CallJobData): Promise<string> {
@@ -68,7 +116,12 @@ export class QueueService {
       jobId: `call-${data.callId}-${data.batchId}`,
       priority: 2,
     });
-    return job.id as string;
+
+    return String(job.id);
+  }
+
+  async addCallJobsBulk(data: CallJobData[]) {
+    return this.callQueue.addBulk(this.createBulkJobs('process-call', data, (job) => `call-${job.callId}-${job.batchId}`, 2));
   }
 
   async addMeetingJob(data: MeetingJobData): Promise<string> {
@@ -76,7 +129,12 @@ export class QueueService {
       jobId: `meeting-${data.meetingId}-${data.batchId}`,
       priority: 2,
     });
-    return job.id as string;
+
+    return String(job.id);
+  }
+
+  async addMeetingJobsBulk(data: MeetingJobData[]) {
+    return this.meetingQueue.addBulk(this.createBulkJobs('process-meeting', data, (job) => `meeting-${job.meetingId}-${job.batchId}`, 2));
   }
 
   async addTaskJob(data: TaskJobData): Promise<string> {
@@ -84,7 +142,12 @@ export class QueueService {
       jobId: `task-${data.taskId}-${data.batchId}`,
       priority: 2,
     });
-    return job.id as string;
+
+    return String(job.id);
+  }
+
+  async addTaskJobsBulk(data: TaskJobData[]) {
+    return this.taskQueue.addBulk(this.createBulkJobs('process-task', data, (job) => `task-${job.taskId}-${job.batchId}`, 2));
   }
 
   async addNoteJob(data: NoteJobData): Promise<string> {
@@ -92,7 +155,12 @@ export class QueueService {
       jobId: `note-${data.noteId}-${data.batchId}`,
       priority: 2,
     });
-    return job.id as string;
+
+    return String(job.id);
+  }
+
+  async addNoteJobsBulk(data: NoteJobData[]) {
+    return this.noteQueue.addBulk(this.createBulkJobs('process-note', data, (job) => `note-${job.noteId}-${job.batchId}`, 2));
   }
 
   async addAssociationJob(data: AssociationJobData): Promise<string> {
@@ -101,7 +169,22 @@ export class QueueService {
       priority: 3,
       delay: 1000,
     });
-    return job.id as string;
+
+    return String(job.id);
+  }
+
+  async addAssociationJobsBulk(data: AssociationJobData[]) {
+    return this.associationQueue.addBulk(
+      data.map((job) => ({
+        name: 'process-association',
+        data: job,
+        opts: {
+          jobId: `assoc-${job.fromSourceId}-${job.toSourceId}-${job.batchId}`,
+          priority: 3,
+          delay: 1000,
+        },
+      })),
+    );
   }
 
   async getAllQueueMetrics(): Promise<Record<string, any>> {

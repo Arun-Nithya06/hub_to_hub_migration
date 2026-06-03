@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Meeting } from '../../common/entities/meeting.entity';
+import { Meeting } from '../../../common/entities';
 import { MeetingService } from './meeting.service';
 import { MeetingProcessor } from './meeting.processor';
 

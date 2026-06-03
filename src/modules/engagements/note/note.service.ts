@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Note } from '../../common/entities/note.entity';
+import { Note } from 'src/common/entities';
 
 @Injectable()
 export class NoteService {

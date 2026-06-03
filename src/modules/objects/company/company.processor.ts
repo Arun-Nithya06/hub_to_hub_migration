@@ -2,9 +2,9 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { CompanyService } from './company.service';
-import { MappingService } from '../mapping/mapping.service';
 import { QueueNames } from 'src/common/constants/queue-names';
 import { CompanyJobData } from 'src/common/interfaces/job-data.interface';
+import { MappingService } from 'src/modules/mapping/mapping.service';
 
 @Processor(QueueNames.COMPANY_PROCESSING, { concurrency: 10 })
 export class CompanyProcessor extends WorkerHost {
